@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-VigilXplr data updater
-Pulls NTSB Public API GetCasesByDateRangeV2 from 1978 → present.
-Year-by-year + marker pagination. Merges into data/events.json.
-
-Key: NTSB_SUBSCRIPTION_KEY env (GitHub secret) or secrets/ntsb_key.txt
+VigilXplr data updater — resilient
+Pulls NTSB Public API GetCasesByDateRangeV2 from 1978 → present incrementally.
+Never hard-fails the GitHub Action on API/network issues.
 """
 from __future__ import annotations
-import json, os, sys, time
+import json, os, sys, time, traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-import requests
+
+try:
+    import requests
+except ImportError:
+    print("[vigil] requests not installed", file=sys.stderr)
+    raise SystemExit(0)
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "events.json"
@@ -19,13 +22,13 @@ PROGRESS = ROOT / "data" / "pull_progress.json"
 KEY_FILE = ROOT / "secrets" / "ntsb_key.txt"
 V2_URL = "https://api.ntsb.gov/public/api/Common/v2/GetCasesByDateRange/"
 HEADERS_BASE = {
-    "User-Agent": "VigilXplr/1.3 (NTSB historical archive builder)",
+    "User-Agent": "VigilXplr/1.4 (NTSB historical archive builder)",
     "Accept": "application/json",
 }
-# Soft cap for single-file GitHub Pages payload; fatal/serious/recent prioritized when trimming
 MAX_EVENTS = 8000
 START_YEAR = 1978
 SURFACE_MODES = ["railroad", "highway", "marine", "pipeline", "hazmat"]
+YEARS_PER_RUN = 3
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -33,17 +36,23 @@ def utc_now() -> str:
 def load_key() -> str | None:
     key = os.environ.get("NTSB_SUBSCRIPTION_KEY", "").strip()
     if key:
+        print(f"[vigil] key loaded from env (len={len(key)})")
         return key
     if KEY_FILE.exists():
-        return KEY_FILE.read_text(encoding="utf-8").strip()
+        key = KEY_FILE.read_text(encoding="utf-8").strip()
+        if key:
+            print(f"[vigil] key loaded from file (len={len(key)})")
+            return key
+    print("[vigil] WARNING: no NTSB_SUBSCRIPTION_KEY found", file=sys.stderr)
     return None
 
 def load_existing() -> list[dict[str, Any]]:
     if OUT.exists():
         try:
-            return list(json.loads(OUT.read_text(encoding="utf-8")).get("events") or [])
-        except Exception:
-            pass
+            data = json.loads(OUT.read_text(encoding="utf-8"))
+            return list(data.get("events") or [])
+        except Exception as e:
+            print(f"[vigil] could not read existing events: {e}", file=sys.stderr)
     return []
 
 def load_progress() -> dict:
@@ -57,6 +66,19 @@ def load_progress() -> dict:
 def save_progress(p: dict):
     PROGRESS.parent.mkdir(parents=True, exist_ok=True)
     PROGRESS.write_text(json.dumps(p, indent=2) + "\n")
+
+def write_events(events: list[dict], meta_extra: dict | None = None):
+    meta = {
+        "generated": utc_now(),
+        "source": "NTSB Public API GetCasesByDateRangeV2",
+        "count": len(events),
+    }
+    if meta_extra:
+        meta.update(meta_extra)
+    payload = {"meta": meta, "events": events}
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"[vigil] wrote {len(events)} events → {OUT}")
 
 def _first(d: dict, *keys, default=None):
     for k in keys:
@@ -149,19 +171,28 @@ def fetch_v2(key: str, start: str, end: str, mode: str | None, marker: str | Non
     if marker:
         params["marker"] = marker
     headers = {**HEADERS_BASE, "Ocp-Apim-Subscription-Key": key}
-    r = requests.get(V2_URL, headers=headers, params=params, timeout=90)
+    try:
+        r = requests.get(V2_URL, headers=headers, params=params, timeout=90)
+    except requests.RequestException as e:
+        print(f"[api] network error: {e}", file=sys.stderr)
+        return [], False, None
     if r.status_code == 204:
         return [], False, None
     if r.status_code == 401:
-        raise RuntimeError("401 Unauthorized — check NTSB_SUBSCRIPTION_KEY")
+        print("[api] 401 Unauthorized — check NTSB_SUBSCRIPTION_KEY secret value", file=sys.stderr)
+        return [], False, None
     if r.status_code == 403:
-        print(f"[api] 403 for {mode} {start}-{end} — backing off", file=sys.stderr)
-        time.sleep(5)
+        print(f"[api] 403 forbidden/rate-limit for {mode} {start}-{end}", file=sys.stderr)
+        time.sleep(3)
         return [], False, None
     if r.status_code != 200:
-        print(f"[api] HTTP {r.status_code} {mode} {start}: {r.text[:120]}", file=sys.stderr)
+        print(f"[api] HTTP {r.status_code} {mode} {start}: {r.text[:150]}", file=sys.stderr)
         return [], False, None
-    d = r.json()
+    try:
+        d = r.json()
+    except Exception:
+        print("[api] invalid JSON response", file=sys.stderr)
+        return [], False, None
     items = d.get("data") or d.get("value") or []
     return items, bool(d.get("hasMore")), d.get("nextMarker") or d.get("marker")
 
@@ -173,7 +204,7 @@ def fetch_year(key: str, year: int, mode: str = "aviation") -> list[dict]:
         end = today.isoformat()
     out = []
     marker = None
-    for page in range(30):  # safety
+    for page in range(30):
         items, has_more, marker = fetch_v2(key, start, end, mode, marker)
         out.extend(items)
         print(f"  {mode} {year} p{page+1}: +{len(items)} year_total={len(out)} more={has_more}")
@@ -206,7 +237,6 @@ def merge_events(existing: list[dict], new: list[dict]) -> list[dict]:
         return (score, e.get("eventDate") or "")
     out.sort(key=rank, reverse=True)
     if len(out) > MAX_EVENTS:
-        # Keep all fatal/serious, then fill with recent others
         keep = [e for e in out if rank(e)[0] >= 50]
         rest = [e for e in out if rank(e)[0] < 50]
         rest.sort(key=lambda e: e.get("eventDate") or "", reverse=True)
@@ -216,96 +246,83 @@ def merge_events(existing: list[dict], new: list[dict]) -> list[dict]:
 
 def main() -> int:
     print(f"[vigil] start {utc_now()}")
+    print(f"[vigil] cwd={Path.cwd()} root={ROOT}")
     existing = load_existing()
     progress = load_progress()
-    print(f"[vigil] existing events={len(existing)} completed_years={len(progress.get('completed_years',[]))}")
+    print(f"[vigil] existing events={len(existing)} completed_years={progress.get('completed_years', [])}")
 
     key = load_key()
     if not key:
-        print("[vigil] No NTSB_SUBSCRIPTION_KEY — cannot pull history", file=sys.stderr)
+        # Don't fail the Action — just keep existing data
+        write_events(existing, {"note": "no API key; retained existing data"})
         return 0
 
     current_year = datetime.now(timezone.utc).year
-    # Process a limited number of years per run so hourly Actions stay under time limits
-    YEARS_PER_RUN = 3
-    all_years = list(range(current_year, START_YEAR - 1, -1))  # 2026 … 1978
-    pending = [y for y in all_years if y not in set(progress.get("completed_years", []))]
+    all_years = list(range(current_year, START_YEAR - 1, -1))
+    done = set(progress.get("completed_years") or [])
+    pending = [y for y in all_years if y not in done]
     batch = pending[:YEARS_PER_RUN]
 
-    fresh_raw = []
-    if batch:
-        print(f"[vigil] aviation years this run: {batch}")
-        for year in batch:
-            items = fetch_year(key, year, "aviation")
-            for it in items:
-                if isinstance(it, dict):
-                    it["_mode_hint"] = "Aviation"
-                    fresh_raw.append(it)
-            progress.setdefault("completed_years", []).append(year)
-            save_progress(progress)
-            # persist partial after each year so we never lose progress
-            partial = [normalize_case(r, r.pop("_mode_hint", None)) for r in fresh_raw if isinstance(r, dict)]
-            merged = merge_events(existing, partial)
-            payload = {
-                "meta": {
-                    "generated": utc_now(),
-                    "source": f"NTSB V2 historical pull (through year {year})",
-                    "count": len(merged),
-                    "progress_years": sorted(progress["completed_years"]),
-                },
-                "events": merged,
-            }
-            OUT.parent.mkdir(parents=True, exist_ok=True)
-            OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
-            print(f"[vigil] checkpoint year {year}: {len(merged)} events written")
-            existing = merged
-            fresh_raw = []
-            time.sleep(0.6)
-    else:
-        print("[vigil] all aviation years 1978–present already completed")
-
-    # Surface modes once
-    if not progress.get("completed_surface"):
-        print("[vigil] pulling surface modes 2010–present")
-        end = datetime.now(timezone.utc).date().isoformat()
-        for mode in SURFACE_MODES:
-            label = mode.capitalize() if mode != "hazmat" else "Hazmat"
-            marker = None
-            for page in range(15):
-                items, has_more, marker = fetch_v2(key, "2010-01-01", end, mode, marker)
+    try:
+        if batch:
+            print(f"[vigil] aviation years this run: {batch}")
+            for year in batch:
+                items = fetch_year(key, year, "aviation")
+                normalized = []
                 for it in items:
                     if isinstance(it, dict):
-                        it["_mode_hint"] = label
-                        fresh_raw.append(it)
-                print(f"  {mode} p{page+1}: +{len(items)} more={has_more}")
-                if not has_more or not items:
-                    break
-                time.sleep(0.35)
-        progress["completed_surface"] = True
-        save_progress(progress)
+                        normalized.append(normalize_case(it, mode_hint="Aviation"))
+                existing = merge_events(existing, normalized)
+                progress.setdefault("completed_years", []).append(year)
+                # de-dupe completed years
+                progress["completed_years"] = sorted(set(progress["completed_years"]), reverse=True)
+                save_progress(progress)
+                write_events(existing, {
+                    "progress_years": progress["completed_years"],
+                    "last_year_pulled": year,
+                    "note": "incremental historical backfill",
+                })
+                print(f"[vigil] checkpoint year {year}: {len(existing)} events")
+                time.sleep(0.5)
+        else:
+            print("[vigil] all aviation years already completed")
 
-    normalized = []
-    for raw in fresh_raw:
-        hint = raw.pop("_mode_hint", None) if isinstance(raw, dict) else None
-        if isinstance(raw, dict):
-            normalized.append(normalize_case(raw, mode_hint=hint))
+        if not progress.get("completed_surface"):
+            print("[vigil] pulling surface modes 2010–present")
+            end = datetime.now(timezone.utc).date().isoformat()
+            surface_new = []
+            for mode in SURFACE_MODES:
+                label = mode.capitalize() if mode != "hazmat" else "Hazmat"
+                marker = None
+                for page in range(15):
+                    items, has_more, marker = fetch_v2(key, "2010-01-01", end, mode, marker)
+                    for it in items:
+                        if isinstance(it, dict):
+                            surface_new.append(normalize_case(it, mode_hint=label))
+                    print(f"  {mode} p{page+1}: +{len(items)} more={has_more}")
+                    if not has_more or not items:
+                        break
+                    time.sleep(0.35)
+            existing = merge_events(existing, surface_new)
+            progress["completed_surface"] = True
+            save_progress(progress)
+            write_events(existing, {
+                "progress_years": progress.get("completed_years", []),
+                "surface_done": True,
+            })
 
-    merged = merge_events(existing, normalized)
-    payload = {
-        "meta": {
-            "generated": utc_now(),
-            "source": "NTSB Public API GetCasesByDateRangeV2 (1978→present incremental)",
-            "count": len(merged),
-            "progress_years": sorted(progress.get("completed_years", [])),
-            "surface_done": progress.get("completed_surface", False),
-            "note": "Runs incrementally: 3 aviation years per hourly Action. Re-run until progress covers 1978–present.",
-        },
-        "events": merged,
-    }
-    OUT.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
-    print(f"[vigil] final write: {len(merged)} events → {OUT}")
-    remaining = [y for y in all_years if y not in set(progress.get("completed_years", []))]
-    print(f"[vigil] aviation years remaining: {len(remaining)}")
+        remaining = [y for y in all_years if y not in set(progress.get("completed_years") or [])]
+        print(f"[vigil] done. events={len(existing)} years remaining={len(remaining)}")
+    except Exception as e:
+        print(f"[vigil] unexpected error (non-fatal): {e}", file=sys.stderr)
+        traceback.print_exc()
+        # still write whatever we have
+        try:
+            write_events(existing, {"note": f"partial run after error: {e}"})
+        except Exception:
+            pass
+        return 0  # do not fail the Action
+
     return 0
 
 if __name__ == "__main__":

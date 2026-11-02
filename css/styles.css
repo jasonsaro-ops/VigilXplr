@@ -352,14 +352,25 @@ html, body {
 
 .map-container {
   position: relative;
-  flex: 1;
-  min-height: 280px;
+  flex: 1 1 auto;
+  min-height: 320px;
+  height: 55%;
+  max-height: none;
 }
 
 #map {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   background: #0d1520;
+  z-index: 1;
+}
+
+/* Ensure overlays sit above tiles */
+.map-search-bar,
+.map-legend {
+  z-index: 1000;
 }
 
 
@@ -375,8 +386,10 @@ html, body {
 
 /* Table */
 .table-panel {
-  height: 38%;
-  min-height: 200px;
+  height: 42%;
+  min-height: 180px;
+  max-height: 45%;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);

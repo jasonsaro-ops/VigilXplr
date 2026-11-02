@@ -252,20 +252,33 @@
     return '#64748b';
   }
 
+  function validCoord(lat, lon) {
+    return typeof lat === 'number' && typeof lon === 'number'
+      && isFinite(lat) && isFinite(lon)
+      && lat >= -85 && lat <= 85
+      && lon >= -180 && lon <= 180
+      && !(lat === 0 && lon === 0);
+  }
+
   function renderMap() {
     if (!state.map) return;
+    // Fix collapsed map after layout changes
+    setTimeout(() => { try { state.map.invalidateSize(true); } catch (_) {} }, 50);
+
     if (state.markers) {
       state.markers.clearLayers();
     } else {
       state.markers = (typeof L.markerClusterGroup === 'function')
-        ? L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true, showCoverageOnHover: false })
+        ? L.markerClusterGroup({ maxClusterRadius: 45, spiderfyOnMaxZoom: true, showCoverageOnHover: false, disableClusteringAtZoom: 10 })
         : L.layerGroup();
       state.map.addLayer(state.markers);
     }
 
     const bounds = [];
     state.filtered.forEach(e => {
-      if (e.lat == null || e.lon == null) return;
+      const lat = Number(e.lat);
+      const lon = Number(e.lon);
+      if (!validCoord(lat, lon)) return;
       const color = colorForMode(e.mode);
       const icon = L.divIcon({
         className: '',
@@ -273,7 +286,7 @@
         iconSize: [14, 14],
         iconAnchor: [7, 7]
       });
-      const m = L.marker([e.lat, e.lon], { icon });
+      const m = L.marker([lat, lon], { icon });
       const loc = [e.city, e.state].filter(Boolean).join(', ');
       m.bindPopup(`
         <strong>${escapeHtml(e.ntsbNum)}</strong><br/>
@@ -291,11 +304,27 @@
         });
       });
       state.markers.addLayer(m);
-      bounds.push([e.lat, e.lon]);
+      bounds.push([lat, lon]);
     });
 
+    // Only auto-fit when the filtered set is a reasonable geographic region
+    // (avoids world-scale zoom-out that collapses the map view)
     if (bounds.length > 0 && !state.selectedId) {
-      try { state.map.fitBounds(bounds, { padding: [30, 30], maxZoom: 8 }); } catch (_) {}
+      try {
+        const latLngBounds = L.latLngBounds(bounds);
+        const ne = latLngBounds.getNorthEast();
+        const sw = latLngBounds.getSouthWest();
+        const spanLat = Math.abs(ne.lat - sw.lat);
+        const spanLon = Math.abs(ne.lng - sw.lng);
+        if (spanLat < 80 && spanLon < 160 && bounds.length < 3000) {
+          state.map.fitBounds(latLngBounds, { padding: [40, 40], maxZoom: 7 });
+        } else {
+          // Default US overview for large / global sets
+          state.map.setView([39.5, -98.3], 4);
+        }
+      } catch (_) {
+        state.map.setView([39.5, -98.3], 4);
+      }
     }
   }
 
@@ -365,16 +394,24 @@
       center: [39.5, -98.3],
       zoom: 4,
       zoomControl: false,
-      attributionControl: true
+      attributionControl: true,
+      minZoom: 2,
+      maxZoom: 18,
+      worldCopyJump: false
     });
-    // Zoom top-left with offset so it never sits under the search bar
     L.control.zoom({ position: 'topleft' }).addTo(state.map);
-    // Free OpenStreetMap tiles — no API key required
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       maxZoom: 19,
-      subdomains: 'abc'
+      subdomains: 'abc',
+      noWrap: false
     }).addTo(state.map);
+
+    // Critical: Leaflet needs a real pixel size; reflow after flex layout settles
+    const fixSize = () => { try { state.map.invalidateSize(true); } catch (_) {} };
+    setTimeout(fixSize, 100);
+    setTimeout(fixSize, 400);
+    window.addEventListener('resize', fixSize);
   }
 
   function bindEvents() {
