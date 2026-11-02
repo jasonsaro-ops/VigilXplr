@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VigilXplr — National Transportation Safety Intelligence</title>
+  <meta name="description" content="Real-time interactive dashboard for NTSB, FAA, and FRA accident, incident, and investigation data across all transportation modes." />
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo-mark">
+          <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+            <circle cx="16" cy="16" r="14" fill="none" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M16 6v10l7 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="16" cy="16" r="2" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="name">VigilXplr</span>
+          <span class="tag">National Transportation Safety Intelligence</span>
+        </div>
+      </div>
+      <div class="topbar-controls">
+        <div class="status-pill" id="dataStatus">
+          <span class="dot"></span>
+          <span class="label">Loading…</span>
+        </div>
+        <div class="last-update" id="lastUpdate">—</div>
+        <button class="btn-icon" id="btnRefresh" title="Refresh data">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+        <button class="btn-icon" id="btnAlerts" title="Toggle alert tones">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        </button>
+        <button class="btn-icon" id="btnTheme" title="Toggle theme">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Layout -->
+    <div class="main-layout">
+      <!-- Left Sidebar: Filters & Stats -->
+      <aside class="sidebar left">
+        <section class="panel">
+          <h3 class="panel-title">Filters</h3>
+          <div class="filter-group">
+            <label>Mode</label>
+            <div class="chip-group" id="modeFilters">
+              <button class="chip active" data-mode="all">All</button>
+              <button class="chip" data-mode="Aviation">Aviation</button>
+              <button class="chip" data-mode="Railroad">Railroad</button>
+              <button class="chip" data-mode="Highway">Highway</button>
+              <button class="chip" data-mode="Marine">Marine</button>
+              <button class="chip" data-mode="Pipeline">Pipeline</button>
+              <button class="chip" data-mode="Hazmat">Hazmat</button>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Severity</label>
+            <div class="chip-group" id="severityFilters">
+              <button class="chip active" data-sev="all">All</button>
+              <button class="chip sev-fatal" data-sev="Fatal">Fatal</button>
+              <button class="chip sev-serious" data-sev="Serious">Serious</button>
+              <button class="chip sev-minor" data-sev="Minor">Minor</button>
+              <button class="chip" data-sev="None">None</button>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Investigation Status</label>
+            <select id="statusFilter" class="select">
+              <option value="all">All Statuses</option>
+              <option value="Preliminary">Preliminary</option>
+              <option value="Factual">Factual</option>
+              <option value="Final">Final / Closed</option>
+              <option value="Open">Open</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label>Date Range</label>
+            <div class="date-row">
+              <input type="date" id="dateFrom" class="input" />
+              <span>→</span>
+              <input type="date" id="dateTo" class="input" />
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Search</label>
+            <input type="search" id="searchInput" class="input" placeholder="NTSB #, location, aircraft, operator…" />
+          </div>
+          <button class="btn primary full" id="btnApplyFilters">Apply Filters</button>
+          <button class="btn ghost full" id="btnResetFilters">Reset</button>
+        </section>
+
+        <section class="panel stats-panel">
+          <h3 class="panel-title">Live Snapshot</h3>
+          <div class="stat-grid" id="statGrid">
+            <div class="stat-card">
+              <div class="stat-value" id="statTotal">—</div>
+              <div class="stat-label">Total Events</div>
+            </div>
+            <div class="stat-card fatal">
+              <div class="stat-value" id="statFatal">—</div>
+              <div class="stat-label">Fatal</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statOpen">—</div>
+              <div class="stat-label">Open Investigations</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-value" id="statAviation">—</div>
+              <div class="stat-label">Aviation</div>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Center: Map + Table -->
+      <main class="center">
+        <div class="map-container">
+          <div id="map"></div>
+          <div class="map-overlay">
+            <div class="legend">
+              <span><i class="dot aviation"></i> Aviation</span>
+              <span><i class="dot railroad"></i> Railroad</span>
+              <span><i class="dot highway"></i> Highway</span>
+              <span><i class="dot other"></i> Other</span>
+            </div>
+          </div>
+        </div>
+        <section class="table-panel">
+          <div class="table-header">
+            <h3>Recent Investigations & Mishaps</h3>
+            <div class="table-actions">
+              <span class="result-count" id="resultCount">0 events</span>
+              <button class="btn ghost sm" id="btnExport">Export CSV</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table id="eventsTable">
+              <thead>
+                <tr>
+                  <th data-sort="date">Date</th>
+                  <th data-sort="ntsbNum">NTSB #</th>
+                  <th data-sort="mode">Mode</th>
+                  <th data-sort="location">Location</th>
+                  <th data-sort="severity">Severity</th>
+                  <th data-sort="status">Status</th>
+                  <th data-sort="summary">Summary</th>
+                </tr>
+              </thead>
+              <tbody id="eventsBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <!-- Right Sidebar: Detail -->
+      <aside class="sidebar right" id="detailSidebar">
+        <section class="panel detail-panel">
+          <div class="detail-empty" id="detailEmpty">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+            <p>Select an event on the map or table to view full investigation details, docket links, probable cause, and related safety recommendations.</p>
+          </div>
+          <div class="detail-content hidden" id="detailContent">
+            <div class="detail-header">
+              <h2 id="detailTitle">—</h2>
+              <span class="badge" id="detailMode">—</span>
+            </div>
+            <div class="detail-meta" id="detailMeta"></div>
+            <div class="detail-section">
+              <h4>Event Summary</h4>
+              <p id="detailSummary">—</p>
+            </div>
+            <div class="detail-section">
+              <h4>Injuries & Damage</h4>
+              <div class="injury-grid" id="detailInjuries"></div>
+            </div>
+            <div class="detail-section">
+              <h4>Investigation Status</h4>
+              <p id="detailStatus">—</p>
+            </div>
+            <div class="detail-section">
+              <h4>Probable Cause / Findings</h4>
+              <p id="detailCause">—</p>
+            </div>
+            <div class="detail-section links">
+              <h4>Official Sources</h4>
+              <div class="link-list" id="detailLinks"></div>
+            </div>
+            <div class="detail-section">
+              <h4>Aircraft / Vehicle</h4>
+              <p id="detailVehicle">—</p>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <!-- Alert Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/alerts.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
