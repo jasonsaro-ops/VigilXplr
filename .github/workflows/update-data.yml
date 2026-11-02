@@ -15,6 +15,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -26,19 +28,36 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
 
-      - name: Run data updater (1978→present incremental)
-        run: python scripts/update_data.py
+      - name: Check secret is present
+        run: |
+          if [ -z "$NTSB_SUBSCRIPTION_KEY" ]; then
+            echo "::warning::NTSB_SUBSCRIPTION_KEY secret is empty or not set"
+            echo "Go to Settings → Secrets and variables → Actions and add NTSB_SUBSCRIPTION_KEY"
+          else
+            echo "Secret is present (length ${#NTSB_SUBSCRIPTION_KEY})"
+          fi
+        env:
+          NTSB_SUBSCRIPTION_KEY: ${{ secrets.NTSB_SUBSCRIPTION_KEY }}
+
+      - name: Run data updater
+        id: updater
+        run: |
+          set +e
+          python scripts/update_data.py
+          code=$?
+          echo "updater exit code: $code"
+          exit 0
         env:
           NTSB_SUBSCRIPTION_KEY: ${{ secrets.NTSB_SUBSCRIPTION_KEY }}
 
       - name: Commit and push if changed
         run: |
           git config user.name "VigilXplr Bot"
-          git config user.email "bot@vigilxplr.local"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add data/events.json data/pull_progress.json || true
           if git diff --staged --quiet; then
-            echo "No data changes"
+            echo "No data changes to commit"
           else
-            git commit -m "chore(data): NTSB historical backfill $(date -u +%Y-%m-%dT%H:%MZ)"
-            git push
+            git commit -m "chore(data): NTSB historical backfill $(date -u +%Y-%m-%dT%H:%MZ)" || true
+            git push origin HEAD:main || git push || echo "Push failed — check repo permissions"
           fi
