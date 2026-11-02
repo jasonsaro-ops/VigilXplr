@@ -41,6 +41,19 @@ Built for GitHub Pages. Designed for operational monitoring, research, and situa
 
 You already successfully called the data dictionary, so the key exists — you just need to copy it into the secret.
 
+## Historical coverage (1978 → present)
+
+The updater pulls **NTSB data from 1978 to present** incrementally:
+
+- Each hourly Action run processes **3 aviation years** (newest first) with full marker pagination
+- Surface modes (railroad, highway, marine, pipeline, hazmat) are pulled once for 2010→present
+- Progress is saved in `data/pull_progress.json` so runs never re-download completed years
+- After ~15–20 hourly runs the full 1978–present aviation window is covered
+- Browser payload is capped (~8000 events) prioritizing fatal/serious/recent for performance
+- Map uses **marker clustering** so thousands of points remain interactive
+
+To accelerate the backfill: Actions → Update VigilXplr Data → Run workflow repeatedly.
+
 ## Data Pipeline
 
 | Component | Role |

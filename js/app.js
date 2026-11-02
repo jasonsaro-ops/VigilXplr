@@ -39,6 +39,8 @@
     els.dateFrom = $('#dateFrom');
     els.dateTo = $('#dateTo');
     els.searchInput = $('#searchInput');
+    els.mapSearchInput = $('#mapSearchInput');
+    els.mapSearchClear = $('#mapSearchClear');
     els.btnApply = $('#btnApplyFilters');
     els.btnReset = $('#btnResetFilters');
     els.statTotal = $('#statTotal');
@@ -171,13 +173,17 @@
       list = list.filter(e => (e.eventDate || '') <= state.dateTo);
     }
     if (state.query) {
-      const q = state.query.toLowerCase();
+      const q = state.query.toLowerCase().trim();
+      const terms = q.split(/\s+/).filter(Boolean);
       list = list.filter(e => {
         const hay = [
-          e.ntsbNum, e.city, e.state, e.country, e.make, e.model, e.reg,
-          e.operator, e.summary, e.probableCause, e.mode
+          e.ntsbNum, e.id, e.city, e.state, e.country, e.make, e.model, e.reg,
+          e.operator, e.summary, e.probableCause, e.mode, e.status,
+          e.reportStatus, e.highestInjury, e.phase, e.weather, e.eventType,
+          e.region, e.aircraftDamage, String(e.mkey || '')
         ].join(' ').toLowerCase();
-        return hay.includes(q);
+        // All terms must match (AND) for multi-word; supports full-text narrative search
+        return terms.every(t => hay.includes(t));
       });
     }
 
@@ -248,8 +254,14 @@
 
   function renderMap() {
     if (!state.map) return;
-    if (state.markers) state.markers.clearLayers();
-    else state.markers = L.layerGroup().addTo(state.map);
+    if (state.markers) {
+      state.markers.clearLayers();
+    } else {
+      state.markers = (typeof L.markerClusterGroup === 'function')
+        ? L.markerClusterGroup({ maxClusterRadius: 40, spiderfyOnMaxZoom: true, showCoverageOnHover: false })
+        : L.layerGroup();
+      state.map.addLayer(state.markers);
+    }
 
     const bounds = [];
     state.filtered.forEach(e => {
@@ -352,13 +364,16 @@
     state.map = L.map('map', {
       center: [39.5, -98.3],
       zoom: 4,
-      zoomControl: true,
+      zoomControl: false,
       attributionControl: true
     });
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19
+    // Zoom top-left with offset so it never sits under the search bar
+    L.control.zoom({ position: 'topleft' }).addTo(state.map);
+    // Free OpenStreetMap tiles — no API key required
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+      subdomains: 'abc'
     }).addTo(state.map);
   }
 
@@ -390,15 +405,50 @@
       state.dateFrom = els.dateFrom.value || null;
       state.dateTo = els.dateTo.value || null;
       state.query = (els.searchInput.value || '').trim();
+      if (els.mapSearchInput) els.mapSearchInput.value = state.query;
+      if (els.mapSearchClear) els.mapSearchClear.classList.toggle('visible', !!state.query);
       applyFilters();
     });
 
     els.searchInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
         state.query = (els.searchInput.value || '').trim();
+        if (els.mapSearchInput) els.mapSearchInput.value = state.query;
         applyFilters();
       }
     });
+
+    // Map floating search — live full-text filter
+    if (els.mapSearchInput) {
+      let searchTimer = null;
+      const runMapSearch = () => {
+        state.query = (els.mapSearchInput.value || '').trim();
+        if (els.searchInput) els.searchInput.value = state.query;
+        if (els.mapSearchClear) els.mapSearchClear.classList.toggle('visible', !!state.query);
+        applyFilters();
+      };
+      els.mapSearchInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(runMapSearch, 220);
+      });
+      els.mapSearchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          clearTimeout(searchTimer);
+          runMapSearch();
+        }
+        if (e.key === 'Escape') {
+          els.mapSearchInput.value = '';
+          runMapSearch();
+        }
+      });
+      if (els.mapSearchClear) {
+        els.mapSearchClear.addEventListener('click', () => {
+          els.mapSearchInput.value = '';
+          runMapSearch();
+          els.mapSearchInput.focus();
+        });
+      }
+    }
 
     els.btnReset.addEventListener('click', () => {
       state.mode = 'all';

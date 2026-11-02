@@ -10,6 +10,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
   <link rel="stylesheet" href="css/styles.css" />
 </head>
 <body>
@@ -128,13 +130,23 @@
       <main class="center">
         <div class="map-container">
           <div id="map"></div>
-          <div class="map-overlay">
-            <div class="legend">
-              <span><i class="dot aviation"></i> Aviation</span>
-              <span><i class="dot railroad"></i> Railroad</span>
-              <span><i class="dot highway"></i> Highway</span>
-              <span><i class="dot other"></i> Other</span>
-            </div>
+          <!-- Floating map search (does not cover zoom controls) -->
+          <div class="map-search-bar">
+            <svg class="map-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="search" id="mapSearchInput" class="map-search-input" placeholder="Search all cases — NTSB #, city, aircraft, operator, narrative…" autocomplete="off" />
+            <button type="button" class="map-search-clear" id="mapSearchClear" title="Clear search">×</button>
+          </div>
+          <!-- Legend bottom-left, clear of zoom (+/− top-left) -->
+          <div class="map-legend" id="mapLegend">
+            <div class="map-legend-title">Modes</div>
+            <div class="map-legend-row"><span class="dot aviation"></span> Aviation</div>
+            <div class="map-legend-row"><span class="dot railroad"></span> Railroad</div>
+            <div class="map-legend-row"><span class="dot highway"></span> Highway</div>
+            <div class="map-legend-row"><span class="dot other"></span> Marine / Pipeline / Hazmat</div>
+            <div class="map-legend-title" style="margin-top:8px">Severity</div>
+            <div class="map-legend-row"><span class="sev-swatch fatal"></span> Fatal</div>
+            <div class="map-legend-row"><span class="sev-swatch serious"></span> Serious</div>
+            <div class="map-legend-row"><span class="sev-swatch minor"></span> Minor / None</div>
           </div>
         </div>
         <section class="table-panel">
@@ -211,6 +223,7 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
   <script src="js/data.js"></script>
   <script src="js/alerts.js"></script>
   <script src="js/app.js"></script>

@@ -362,39 +362,16 @@ html, body {
   background: #0d1520;
 }
 
-.map-overlay {
-  position: absolute;
-  bottom: 12px;
-  left: 12px;
-  z-index: 500;
-  pointer-events: none;
-}
 
-.legend {
-  display: flex;
-  gap: 12px;
-  background: rgba(17, 24, 39, 0.85);
-  backdrop-filter: blur(8px);
-  padding: 6px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  font-size: 0.7rem;
-  color: var(--text-muted);
-}
 
-.legend .dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  margin-right: 4px;
-  vertical-align: middle;
-}
 
-.legend .dot.aviation { background: var(--aviation); }
-.legend .dot.railroad { background: var(--railroad); }
-.legend .dot.highway { background: var(--highway); }
-.legend .dot.other { background: var(--other); }
+
+
+
+
+
+
+
 
 /* Table */
 .table-panel {
@@ -695,4 +672,157 @@ tr.selected { background: var(--accent-glow); }
   .sidebar.left {
     display: none;
   }
+}
+
+/* ---- Map search bar (top center, clear of zoom controls) ---- */
+.map-search-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: min(420px, calc(100% - 100px));
+  background: rgba(17, 24, 39, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  padding: 8px 14px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  pointer-events: auto;
+}
+.map-search-icon {
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.map-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 0.84rem;
+  min-width: 0;
+}
+.map-search-input::placeholder {
+  color: var(--text-dim);
+}
+.map-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+  display: none;
+}
+.map-search-clear.visible {
+  display: block;
+}
+.map-search-clear:hover {
+  color: var(--text);
+}
+
+/* ---- Map legend (bottom-left, clear of attribution & zoom) ---- */
+.map-legend {
+  position: absolute;
+  bottom: 28px;
+  left: 12px;
+  z-index: 900;
+  background: rgba(17, 24, 39, 0.92);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  pointer-events: none;
+  min-width: 140px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.3);
+}
+.map-legend-title {
+  font-size: 0.62rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.map-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 3px 0;
+  color: var(--text-muted);
+}
+.map-legend .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.35);
+}
+.map-legend .dot.aviation { background: var(--aviation); }
+.map-legend .dot.railroad { background: var(--railroad); }
+.map-legend .dot.highway { background: var(--highway); }
+.map-legend .dot.other { background: var(--other); }
+.sev-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.sev-swatch.fatal { background: var(--fatal); }
+.sev-swatch.serious { background: var(--serious); }
+.sev-swatch.minor { background: var(--none); }
+
+/* Leaflet zoom control: keep top-left with breathing room from search bar */
+.leaflet-top.leaflet-left {
+  top: 10px;
+  left: 10px;
+}
+.leaflet-control-zoom {
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius-sm) !important;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+}
+.leaflet-control-zoom a {
+  background: var(--bg-panel) !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--border) !important;
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 30px !important;
+}
+.leaflet-control-zoom a:hover {
+  background: var(--bg-hover) !important;
+}
+.leaflet-bottom.leaflet-right {
+  bottom: 4px;
+  right: 4px;
+}
+.leaflet-control-attribution {
+  background: rgba(17,24,39,0.75) !important;
+  color: var(--text-dim) !important;
+  font-size: 0.65rem !important;
+  max-width: 50%;
+}
+.leaflet-control-attribution a {
+  color: var(--accent-cyan) !important;
+}
+
+/* Marker cluster colors */
+.marker-cluster-small, .marker-cluster-medium, .marker-cluster-large {
+  background: rgba(59, 130, 246, 0.35) !important;
+}
+.marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
+  background: rgba(59, 130, 246, 0.85) !important;
+  color: #fff !important;
+  font-family: var(--font) !important;
+  font-weight: 600 !important;
 }
