@@ -1,8 +1,8 @@
 {
   "meta": {
-    "generated": "2026-11-02T18:00:00Z",
-    "source": "NTSB CAROL / public APIs + sample enrichment",
-    "note": "Updated by GitHub Action scripts/update_data.py. Uses NTSB public endpoints and Amineharrabi/NTSB_api patterns."
+    "generated": "2026-11-02T18:57:37Z",
+    "source": "seed / previous snapshot (no API key)",
+    "count": 12
   },
   "events": [
     {
