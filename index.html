@@ -189,29 +189,59 @@
               <span class="badge" id="detailMode">—</span>
             </div>
             <div class="detail-meta" id="detailMeta"></div>
+
             <div class="detail-section">
               <h4>Event Summary</h4>
-              <p id="detailSummary">—</p>
+              <p id="detailSummary" class="detail-text">—</p>
             </div>
+
             <div class="detail-section">
-              <h4>Injuries & Damage</h4>
+              <h4>Injuries &amp; Damage</h4>
               <div class="injury-grid" id="detailInjuries"></div>
+              <p id="detailDamage" class="detail-sub"></p>
             </div>
+
             <div class="detail-section">
               <h4>Investigation Status</h4>
               <p id="detailStatus">—</p>
+              <p id="detailClass" class="detail-sub"></p>
             </div>
+
+            <div class="detail-section">
+              <h4>Preliminary Narrative</h4>
+              <p id="detailPrelim" class="detail-text muted-empty">Not available for this case.</p>
+            </div>
+
+            <div class="detail-section">
+              <h4>Factual / Analysis Narrative</h4>
+              <p id="detailFactual" class="detail-text muted-empty">Not available for this case.</p>
+            </div>
+
             <div class="detail-section">
               <h4>Probable Cause / Findings</h4>
-              <p id="detailCause">—</p>
+              <p id="detailCause" class="detail-text">—</p>
+              <div id="detailFindings" class="findings-list"></div>
             </div>
-            <div class="detail-section links">
-              <h4>Official Sources</h4>
-              <div class="link-list" id="detailLinks"></div>
-            </div>
+
             <div class="detail-section">
               <h4>Aircraft / Vehicle</h4>
-              <p id="detailVehicle">—</p>
+              <div id="detailVehicle" class="detail-kv"></div>
+            </div>
+
+            <div class="detail-section">
+              <h4>Flight / Operation</h4>
+              <div id="detailFlight" class="detail-kv"></div>
+            </div>
+
+            <div class="detail-section">
+              <h4>Weather &amp; Environment</h4>
+              <div id="detailWeather" class="detail-kv"></div>
+            </div>
+
+            <div class="detail-section links">
+              <h4>Official Sources &amp; Reports</h4>
+              <div class="link-list" id="detailLinks"></div>
+              <p class="detail-hint">When the API returns narratives they appear above. Final report PDFs open on NTSB.gov.</p>
             </div>
           </div>
         </section>

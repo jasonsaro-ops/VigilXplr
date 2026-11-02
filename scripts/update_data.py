@@ -122,18 +122,31 @@ def normalize_case(raw: dict, mode_hint: str | None = None) -> dict[str, Any]:
             "highway": "Highway", "marine": "Marine", "pipeline": "Pipeline",
             "hazmat": "Hazmat",
         }.get(ml, mode.capitalize())
-    summary = _first(raw, "prelimNarrative", "concatenatedFactualNarrative",
-                     "analysisNarrative", "narrative", "summary", default="")
+    prelim = _first(raw, "prelimNarrative", "preliminaryNarrative", default="")
+    factual = _first(raw, "concatenatedFactualNarrative", "factualNarrative", "analysisNarrative", default="")
+    summary = _first(raw, "summary", "narrative", default="") or prelim or factual
     if not summary:
         et = _first(raw, "eventType", default="")
         summary = f"{mode} {et} — {city}, {state}".strip(" —")
-    if isinstance(summary, str) and len(summary) > 400:
-        summary = summary[:397] + "…"
-    cause = _first(raw, "probableCause", "findings", default="Under investigation.")
+    if isinstance(summary, str) and len(summary) > 600:
+        summary = summary[:597] + "…"
+    cause = _first(raw, "probableCause", default="")
+    if not cause:
+        findings = raw.get("findings")
+        if isinstance(findings, list) and findings:
+            bits = []
+            for f in findings[:5]:
+                if isinstance(f, dict) and f.get("inProbableCause"):
+                    bits.append(f.get("tier4Name") or f.get("tier3Name") or f.get("description") or "")
+                elif isinstance(f, str):
+                    bits.append(f)
+            cause = "; ".join(b for b in bits if b)
+    if not cause:
+        cause = "Under investigation."
     if isinstance(cause, list):
-        cause = "; ".join(str(c) for c in cause[:2])
-    if isinstance(cause, str) and len(cause) > 300:
-        cause = cause[:297] + "…"
+        cause = "; ".join(str(c) for c in cause[:3])
+    if isinstance(cause, str) and len(cause) > 500:
+        cause = cause[:497] + "…"
     docket = _first(raw, "docketPage", "DocketPage", "docketUrl")
     if not docket and ntsb:
         docket = f"https://data.ntsb.gov/Docket/?ProjectID={ntsb}"
@@ -162,6 +175,22 @@ def normalize_case(raw: dict, mode_hint: str | None = None) -> dict[str, Any]:
         "weather": _first(raw, "accidentSiteCondition", "weatherCondition"),
         "eventType": _first(raw, "eventType"),
         "region": _first(raw, "region"),
+        "investigationClass": _first(raw, "investigationClass"),
+        "reportType": _first(raw, "reportType"),
+        "investigationPage": _first(raw, "investigationPage", "InvestigationPage"),
+        "prelimNarrative": _first(raw, "prelimNarrative", "preliminaryNarrative"),
+        "factualNarrative": _first(raw, "concatenatedFactualNarrative", "factualNarrative", "analysisNarrative"),
+        "analysisNarrative": _first(raw, "analysisNarrative"),
+        "findings": raw.get("findings") if isinstance(raw.get("findings"), list) else None,
+        "aircraftCategory": _first(raw, "aircraftCategory"),
+        "flightOperationType": _first(raw, "flightOperationType"),
+        "regulationFlightConductedUnder": _first(raw, "regulationFlightConductedUnder"),
+        "departureCity": _first(raw, "departureCity"),
+        "destinationCity": _first(raw, "destinationCity"),
+        "visibilitySm": _first(raw, "visibilitySm"),
+        "windSpeedKts": _first(raw, "windSpeedKts"),
+        "daylightCondition": _first(raw, "daylightCondition"),
+        "accidentSiteCondition": _first(raw, "accidentSiteCondition"),
     }
 
 def fetch_v2(key: str, start: str, end: str, mode: str | None, marker: str | None):
@@ -244,6 +273,71 @@ def merge_events(existing: list[dict], new: list[dict]) -> list[dict]:
     out.sort(key=lambda e: e.get("eventDate") or "", reverse=True)
     return out
 
+
+def enrich_case(key: str, ev: dict) -> dict:
+    """Pull GetAviationCase / GetCase for deeper narratives when missing."""
+    mkey = ev.get("mkey")
+    ntsb = ev.get("ntsbNum") or ""
+    mode = (ev.get("mode") or "").lower()
+    if not mkey and not ntsb:
+        return ev
+    # Skip if we already have a real probable cause or factual narrative
+    has_depth = (
+        (ev.get("probableCause") and ev["probableCause"] not in ("Under investigation.", ""))
+        or ev.get("factualNarrative")
+        or ev.get("prelimNarrative")
+    )
+    if has_depth:
+        return ev
+
+    headers = {**HEADERS_BASE, "Ocp-Apim-Subscription-Key": key}
+    urls = []
+    if mode == "aviation" or not mode:
+        if mkey:
+            urls.append(f"https://api.ntsb.gov/public/api/Aviation/v1/GetAviationCase?mKey={mkey}")
+        if ntsb:
+            urls.append(f"https://api.ntsb.gov/public/api/Aviation/v1/GetAviationCase?ntsbNumber={ntsb}")
+    if mkey:
+        urls.append(f"https://api.ntsb.gov/public/api/Common/v1/GetCase?mKey={mkey}")
+
+    for url in urls:
+        try:
+            r = requests.get(url, headers=headers, timeout=45)
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            # unwrap
+            if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
+                data = data["data"]
+            if not isinstance(data, dict):
+                continue
+            extra = normalize_case(data, mode_hint=ev.get("mode"))
+            for k, v in extra.items():
+                if v not in (None, "", [], "Under investigation.") and not ev.get(k):
+                    ev[k] = v
+                elif k in ("probableCause", "prelimNarrative", "factualNarrative", "summary", "findings") and v not in (None, "", [], "Under investigation."):
+                    ev[k] = v
+            # Nested narrative tables
+            for table_key, field_map in (
+                ("narratives", {"prelimNarrative": "prelimNarrative", "probableCause": "probableCause",
+                                "concatenatedFactualNarrative": "factualNarrative", "analysisNarrative": "analysisNarrative"}),
+            ):
+                block = data.get(table_key)
+                if isinstance(block, list) and block:
+                    block = block[0]
+                if isinstance(block, dict):
+                    for src, dst in field_map.items():
+                        val = block.get(src)
+                        if val:
+                            ev[dst] = val
+            print(f"  enriched {ntsb or mkey}")
+            break
+        except Exception as ex:
+            print(f"  enrich fail {ntsb}: {ex}", file=sys.stderr)
+            continue
+    return ev
+
+
 def main() -> int:
     print(f"[vigil] start {utc_now()}")
     print(f"[vigil] cwd={Path.cwd()} root={ROOT}")
@@ -309,6 +403,28 @@ def main() -> int:
             write_events(existing, {
                 "progress_years": progress.get("completed_years", []),
                 "surface_done": True,
+            })
+
+        # Enrich up to 40 recent cases missing narratives (keeps Action time reasonable)
+        need = [e for e in existing
+                if (e.get("mode") or "").lower() == "aviation"
+                and (not e.get("probableCause") or e.get("probableCause") == "Under investigation.")
+                and (e.get("mkey") or e.get("ntsbNum"))]
+        need = need[:40]
+        if need:
+            print(f"[vigil] enriching {len(need)} cases with GetAviationCase")
+            for i, ev in enumerate(need):
+                enriched = enrich_case(key, dict(ev))
+                # write back into existing by id
+                for j, ex in enumerate(existing):
+                    if (ex.get("id") or ex.get("ntsbNum")) == (enriched.get("id") or enriched.get("ntsbNum")):
+                        existing[j] = enriched
+                        break
+                if (i + 1) % 10 == 0:
+                    time.sleep(0.4)
+            write_events(existing, {
+                "progress_years": progress.get("completed_years", []),
+                "note": "post-enrichment snapshot",
             })
 
         remaining = [y for y in all_years if y not in set(progress.get("completed_years") or [])]

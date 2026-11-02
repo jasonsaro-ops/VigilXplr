@@ -344,13 +344,27 @@
     meta.push(`<span>${formatDate(e.eventDate)}${e.eventTime ? ' · ' + e.eventTime : ''}</span>`);
     const loc = [e.city, e.state, e.country].filter(Boolean).join(', ');
     if (loc) meta.push(`<span>${escapeHtml(loc)}</span>`);
+    if (e.eventType) meta.push(`<span>${escapeHtml(e.eventType)}</span>`);
+    if (e.region) meta.push(`<span>${escapeHtml(e.region)}</span>`);
     if (e.phase) meta.push(`<span>${escapeHtml(e.phase)}</span>`);
-    if (e.weather) meta.push(`<span>${escapeHtml(e.weather)}</span>`);
     els.detailMeta.innerHTML = meta.join('');
 
-    els.detailSummary.textContent = e.summary || 'No summary available.';
-    els.detailStatus.textContent = (e.status || e.reportStatus || '—') + (e.reportStatus && e.status !== e.reportStatus ? ` (${e.reportStatus})` : '');
-    els.detailCause.textContent = e.probableCause || 'Not yet determined / under investigation.';
+    const setText = (el, text, emptyMsg) => {
+      if (!el) return;
+      const t = (text || '').trim();
+      if (!t || t === 'Under investigation.' || t === '—') {
+        el.textContent = emptyMsg || 'Not available for this case.';
+        el.classList.add('muted-empty');
+      } else {
+        el.textContent = t;
+        el.classList.remove('muted-empty');
+      }
+    };
+    const kv = (rows) => rows.filter(r => r[1] != null && r[1] !== '' && r[1] !== '—')
+      .map(([k, v]) => `<div class="kv-row"><span class="kv-k">${escapeHtml(k)}</span><span class="kv-v">${escapeHtml(String(v))}</span></div>`)
+      .join('') || '<span class="muted-empty">No data</span>';
+
+    setText(els.detailSummary, e.summary || e.prelimNarrative || e.factualNarrative, 'No summary available.');
 
     els.detailInjuries.innerHTML = `
       <div><strong>${e.fatal ?? 0}</strong> Fatal</div>
@@ -358,23 +372,71 @@
       <div><strong>${e.minor ?? 0}</strong> Minor</div>
       <div><strong>${e.uninjured ?? 0}</strong> Uninjured</div>
     `;
+    const dmg = document.getElementById('detailDamage');
+    if (dmg) dmg.textContent = e.aircraftDamage ? ('Damage: ' + e.aircraftDamage) : '';
+
+    els.detailStatus.textContent = e.status || e.reportStatus || '—';
+    const cls = document.getElementById('detailClass');
+    if (cls) cls.textContent = [e.investigationClass, e.reportType].filter(Boolean).join(' · ');
+
+    setText(document.getElementById('detailPrelim'), e.prelimNarrative || e.preliminaryNarrative, 'No preliminary narrative on file.');
+    setText(document.getElementById('detailFactual'), e.factualNarrative || e.analysisNarrative || e.concatenatedFactualNarrative, 'No factual/analysis narrative on file.');
+    setText(els.detailCause, e.probableCause, 'Probable cause not yet published / under investigation.');
+
+    const findingsEl = document.getElementById('detailFindings');
+    if (findingsEl) {
+      const findings = e.findings || e.findingsList || [];
+      if (Array.isArray(findings) && findings.length) {
+        findingsEl.innerHTML = findings.map(f => {
+          if (typeof f === 'string') return `<div class="finding-item">${escapeHtml(f)}</div>`;
+          const text = f.text || f.description || f.tier4Name || f.tier3Name || '';
+          const pc = f.inProbableCause ? ' <span class="tag-pc">probable cause</span>' : '';
+          return text ? `<div class="finding-item">${escapeHtml(text)}${pc}</div>` : '';
+        }).join('');
+      } else findingsEl.innerHTML = '';
+    }
+
+    const vehicleEl = document.getElementById('detailVehicle');
+    if (vehicleEl) {
+      vehicleEl.innerHTML = kv([
+        ['Make', e.make], ['Model', e.model], ['Registration', e.reg],
+        ['Operator', e.operator], ['Damage', e.aircraftDamage],
+        ['Category', e.aircraftCategory],
+      ]);
+    }
+    const flightEl = document.getElementById('detailFlight');
+    if (flightEl) {
+      flightEl.innerHTML = kv([
+        ['Phase of flight', e.phase],
+        ['Flight type', e.flightOperationType || e.flightType],
+        ['Regulation', e.regulationFlightConductedUnder],
+        ['Departure', e.departureCity || e.departureAirport],
+        ['Destination', e.destinationCity || e.destinationAirport],
+      ]);
+    }
+    const wxEl = document.getElementById('detailWeather');
+    if (wxEl) {
+      wxEl.innerHTML = kv([
+        ['Condition', e.weather || e.accidentSiteCondition],
+        ['Visibility', e.visibilitySm != null ? e.visibilitySm + ' sm' : null],
+        ['Wind', e.windSpeedKts != null ? e.windSpeedKts + ' kt' : null],
+        ['Light', e.daylightCondition],
+      ]);
+    }
 
     const links = [];
-    if (e.docketUrl) links.push(`<a href="${e.docketUrl}" target="_blank" rel="noopener">Accident Docket</a>`);
-    if (e.reportUrl) links.push(`<a href="${e.reportUrl}" target="_blank" rel="noopener">Investigation Report</a>`);
-    links.push(`<a href="https://www.ntsb.gov/Pages/CAROL.aspx" target="_blank" rel="noopener">NTSB CAROL Search</a>`);
-    links.push(`<a href="https://data.ntsb.gov/Docket/Forms/searchdocket" target="_blank" rel="noopener">Docket Search</a>`);
+    const ntsb = e.ntsbNum || '';
+    if (e.docketUrl) links.push(`<a href="${escapeHtml(e.docketUrl)}" target="_blank" rel="noopener">Accident Docket</a>`);
+    if (e.reportUrl) links.push(`<a href="${escapeHtml(e.reportUrl)}" target="_blank" rel="noopener">Investigation / Final Report</a>`);
+    if (e.investigationPage) links.push(`<a href="${escapeHtml(e.investigationPage)}" target="_blank" rel="noopener">NTSB Investigation Page</a>`);
+    if (ntsb) {
+      links.push(`<a href="https://data.ntsb.gov/Docket/?ProjectID=${encodeURIComponent(ntsb)}" target="_blank" rel="noopener">Open Docket (${escapeHtml(ntsb)})</a>`);
+    }
+    links.push(`<a href="https://data.ntsb.gov/carol-main-public/basic-search" target="_blank" rel="noopener">NTSB CAROL Search</a>`);
     if ((e.mode || '').toLowerCase().includes('rail')) {
       links.push(`<a href="https://data.transportation.gov/stories/s/FRA-Safety-Data-Landing-Page/dakf-i7zd/" target="_blank" rel="noopener">FRA Safety Data</a>`);
     }
     els.detailLinks.innerHTML = links.join('');
-
-    const vehicleParts = [];
-    if (e.make || e.model) vehicleParts.push([e.make, e.model].filter(Boolean).join(' '));
-    if (e.reg) vehicleParts.push('Reg: ' + e.reg);
-    if (e.operator) vehicleParts.push('Operator: ' + e.operator);
-    if (e.aircraftDamage) vehicleParts.push('Damage: ' + e.aircraftDamage);
-    els.detailVehicle.textContent = vehicleParts.length ? vehicleParts.join(' · ') : '—';
 
     // highlight row + fly map
     $$('#eventsBody tr').forEach(tr => {
