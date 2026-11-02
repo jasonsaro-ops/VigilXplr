@@ -1,1 +1,8 @@
-{"completed_years": [], "completed_surface": false}
+{
+  "completed_years": [
+    2026,
+    2025,
+    2024
+  ],
+  "completed_surface": true
+}
