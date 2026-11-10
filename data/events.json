@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-11-09T19:04:51Z",
+    "generated": "2026-11-10T01:53:37Z",
     "source": "NTSB Public API GetCasesByDateRangeV2",
     "count": 33618,
     "progress_years": [
@@ -1439,8 +1439,8 @@
       "city": "Knights Landing",
       "state": "CA",
       "country": "USA",
-      "lat": null,
-      "lon": null,
+      "lat": 38.783433,
+      "lon": -121.76091,
       "highestInjury": "Serious",
       "fatal": 0,
       "serious": 1,
@@ -1461,7 +1461,7 @@
       "weather": null,
       "eventType": "Accident",
       "region": "Western Pacific Region",
-      "investigationClass": null,
+      "investigationClass": "Class 4 - Basic report with no Prelim publish",
       "reportType": "Approved by Office Director",
       "investigationPage": null,
       "prelimNarrative": null,
