@@ -1,6 +1,6 @@
 {
   "meta": {
-    "generated": "2026-11-10T17:30:02Z",
+    "generated": "2026-11-10T22:50:12Z",
     "source": "NTSB Public API GetCasesByDateRangeV2",
     "count": 33618,
     "progress_years": [
@@ -410,8 +410,8 @@
       "city": "Myakka City",
       "state": "FL",
       "country": "USA",
-      "lat": null,
-      "lon": null,
+      "lat": 27.360777,
+      "lon": -82.236558,
       "highestInjury": "Fatal",
       "fatal": 1,
       "serious": 0,
@@ -435,7 +435,7 @@
       "investigationClass": "Class 3",
       "reportType": "Approved by Office Director",
       "investigationPage": null,
-      "prelimNarrative": null,
+      "prelimNarrative": "On October 15, 2026, about 2051 eastern daylight time, a Bell 407 helicopter, N618TS, was destroyed when it was involved in an accident near Myakka City, Florida. The commercial pilot was fatally injured. The helicopter was operated as a Title 14 Code of Federal Regulations Part 91 public use flight. The helicopter was owned and operated by Manatee County Mosquito Control District (MCMCD). The accident flight was the pilot’s first mosquito control spraying mission that day. According to the operator, mosquito control spraying was conducted at night with pilots utilizing night vision goggles. The spray pattern was guided by a “Tabula” GPS-based navigation system which displayed the target path on a tablet and a course deviation indication (CDI) via a light bar above the glareshield. Charted obstacles were displayed on the tablet from the GPS database as a triangle with a text box above the triangle that provided the obstacle’s height above ground level (agl). Obstacles identified by the operator that were not included in the GPS database were individually added by the operator. When the helicopter approached an obstacle within 350 ft either side of its flight path and 10 seconds before a projected conflict, the tablet screen displayed a red “Hazard” warning, and the CDI light bar turned red and displayed “Hazard,” without regard to the helicopter’s altitude or the height of the obstacle. The system did not provide any aural warnings. The second spray area or “box” assigned to the pilot contained three collocated unlit amateur radio towers that were 50-, 100-, and 150-ft tall. The 100- and 150-ft tall towers were operator-added obstacles in the Tabula database. The pilot had previously sprayed the area around the accident site about five times during 2026. Review of FAA ADS-B data and data from the on-board Tabula system that was live streamed to the operator’s facility, revealed that the flight departed from MC1 Heliport (1FD1), Ellenton, Florida, about 1847, and proceeded in an east-southeast direction, then turned to a southerly direction and began spraying the designated area between 1901 and 1905. While spraying, pilot was in regular communication with MCMCD employees and the pilot of a second MCMCD helicopter (N407LD) that was also conducting mosquito control spraying in the area. All communications were normal. The pilot had planned to finish dispersing 100 gallons of insecticide and return to 1FD1 to refuel and reload chemicals. About 2040, the pilot discussed having about 333 pounds of fuel remaining (about 45 minutes) and stopping to refuel and load chemical at the off-site “64 property”, located about 12 miles north of the spray areas. Tabula data provided by the operator showed the helicopter flying in a straight line in the second spray box in a westerly direction. The helicopter appeared to deviate to the south from the targeted course to an area that had been previously sprayed. When the helicopter reached the boundary of the spray box, it reversed course and resumed spraying in the opposite direction over previously sprayed areas. The helicopter made several turns, with the spray both turned off and on, before it rejoined the original westerly path and then turned back to the east. While flying in an easterly direction about 80 knots groundspeed the helicopter struck the 150 ft tall tower about 130 ft agl. The majority of the tower collapsed and about 40 ft remained standing. Operator personnel monitoring the helicopter’s flight noted its track had become stationary, and the pilot of the other company helicopter was asked to “check on” the pilot of the accident helicopter. The wreckage was located at the last position reported by the on-board Tabula system. The owner of the property where the main wreckage came to rest reported that he saw the helicopter flying in a due northerly direction. He went inside his home and subsequently heard the sound a crash and observed a fire. He then went to the accident site and observed the main wreckage on fire by the tailboom. The cockpit area was crushed but was not on fire. The pilot was wearing a seatbelt and shoulder harness. The property owner and a neighbor who also responded to the accident site removed the pilot from the main wreckage and emergency medical services arrived shortly thereafter. The wreckage was retained for further examination. ",
       "factualNarrative": null,
       "analysisNarrative": null,
       "findings": null,
